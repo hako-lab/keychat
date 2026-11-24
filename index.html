@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://openrouter.ai https: http://localhost:* http://127.0.0.1:*; img-src data:; base-uri 'none'; form-action 'none'">
-<title>KeyChat v2 - 自分のAPIキーで使うブラウザチャット</title>
+<title>KeyChat v3 - 自分のAPIキーで使うブラウザチャット</title>
 <style>
 :root{--bg:#fff;--side:#f4f4f6;--line:#dcdce2;--fg:#1d1d22;--sub:#6b6b76;--acc:#2f6fed;--user:#e9f0ff;--bot:#f6f6f8;--code:#17181c}
 @media(prefers-color-scheme:dark){:root{--bg:#16171b;--side:#1d1e23;--line:#34353c;--fg:#e8e8ee;--sub:#9a9aa6;--acc:#6b9bff;--user:#23304d;--bot:#202126;--code:#0d0e11}}
@@ -91,8 +91,8 @@ button,select,input,textarea{font:inherit;color:inherit}
 var $=function(i){return document.getElementById(i)};
 var PROV={
  openai:{url:'https://api.openai.com/v1',models:['gpt-4o-mini','gpt-4o','gpt-3.5-turbo'],kind:'oa'},
- anthropic:{url:'https://api.anthropic.com/v1',models:['claude-3-5-haiku-latest','claude-3-5-sonnet-latest'],kind:'an'},
- gemini:{url:'https://generativelanguage.googleapis.com/v1beta/openai',models:['gemini-1.5-flash','gemini-1.5-pro'],kind:'oa'},
+ anthropic:{url:'https://api.anthropic.com/v1',models:['claude-sonnet-4-5','claude-haiku-4-5','claude-opus-4-5'],kind:'an'},
+ gemini:{url:'https://generativelanguage.googleapis.com/v1beta/openai',models:['gemini-2.5-flash','gemini-2.5-pro','gemini-3-flash-preview'],kind:'oa'},
  openrouter:{url:'https://openrouter.ai/api/v1',models:['openai/gpt-4o-mini','anthropic/claude-3.5-haiku'],kind:'oa'},
  custom:{url:'',models:[],kind:'oa'}};
 var S={chats:[],cur:null};
@@ -192,6 +192,7 @@ $('file').onchange=function(){var f=this.files[0];if(!f)return;var r=new FileRea
     d.chats.forEach(function(c){c.id=uid();S.chats.push(c)});save();draw()}catch(e){alert('読み込めないファイルです')}};r.readAsText(f)};
 function setBusy(b){$('send').hidden=b;$('stop').hidden=!b}
 $('stop').onclick=function(){if(abort)abort.abort()};
+function mergeRoles(ms){var o=[];ms.forEach(function(m){var l=o[o.length-1];if(l&&l.role===m.role){l.content+='\n\n'+m.content}else{o.push({role:m.role,content:m.content})}});return o}
 function addUse(c,i,o){if(i)c.tin=(c.tin||0)+i;if(o)c.tout=(c.tout||0)+o}
 async function send(){
   var txt=$('inp').value.trim();if(!txt||abort)return;
@@ -201,12 +202,15 @@ async function send(){
   if(y!==null&&!isNaN(cap)&&cap>0&&y>=cap&&!confirm('このチャットの概算料金がリマインド金額('+cap+'円)に達しています。これは上限ではなく確認だけです。続けますか?'))return;
   var pv=PROV[P.prov],base=P.prov==='custom'?P.base:pv.url;
   if(!base){alert('URLを入力してください');return}
+  if(c.msgs.length&&c.prov&&c.prov!==P.prov&&!confirm('この会話の過去のユーザー文とAI応答も、選んだ送信先('+P.prov+')へ送られ、その会社の利用量に含まれます。続けますか?\n(やめる場合は「新しいチャット」で始めてください)'))return;
+  c.prov=P.prov;
   c.msgs.push({role:'user',content:txt});
   if(c.msgs.length===1){c.title=txt.slice(0,28)}
   $('inp').value='';$('inp').style.height='';
   var ai={role:'assistant',content:''};c.msgs.push(ai);save();drawList();drawMsgs();
   var bub=$('msgs').lastChild.lastChild;
   var hist=c.msgs.slice(0,-1).map(function(m){return{role:m.role,content:m.content}});
+  if(pv.kind==='an')hist=mergeRoles(hist);
   abort=new AbortController();setBusy(true);
   try{
     var url,hd={'Content-Type':'application/json'},body;
